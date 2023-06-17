@@ -39,7 +39,7 @@ yfi_discount = 0.00245 * ve_lock + 0.0902
 # yfi_allowed: total YFI allowed to purchase this month
 # comp: contributor compensation in stables this month
 # yfi_price: current YFI price in stables
-yfi_allowed = comp / (1 - yfi_discount) * yfi_price
+yfi_allowed = comp / ((1 - yfi_discount) * yfi_price)
 ```
 
 ## Adjustments to the spec
@@ -93,7 +93,7 @@ Rationale: This is net equal or better for Yearn, as it removes the incentive to
 
 * Once a contributor has been given an allowance to purchase YFI, they may interact with yDiscount smart contracts to do so.
 * The yDiscount contracts looks up the veYFI lock duration of the address to determine the applicable discount.
-* In accordance with the YIP, total amount available for purchase [is influenced by the discount](https://hackmd.io/fnyi7p_4RjmBKEOewHcpfg?both#YFI-purchase-allowance).
+* In accordance with the YIP, total amount available for purchase [is influenced by the discount](#YFI-purchase-allowance).
 * YFI price is current spot price, using Chainlink oracle for YFI/DAI.[[1]](#Open-design-questions)
 * Contributor has the option to purchase any granular amount up to the max.
 * Contributor may make multiple purchases during the month, until allowance expires.
