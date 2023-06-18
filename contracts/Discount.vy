@@ -39,8 +39,8 @@ contributor_allowances: HashMap[address, HashMap[address, uint256]] # team -> co
 
 SCALE: constant(uint256) = 10**18
 SPOT_PRICE_SCALE: constant(uint256) = 10**10
-PRICE_MULTIPLIER_SLOPE: constant(uint256) = 245096 * 10**10
-PRICE_MULTIPLIER_BIAS: constant(uint256) = 90980384 * 10**10
+PRICE_DISCOUNT_SLOPE: constant(uint256) = 245096 * 10**10
+PRICE_DISCOUNT_BIAS: constant(uint256) = 9019616 * 10**10
 DELEGATE_PRICE_MULTIPLIER: constant(uint256) = 9 * 10**17
 
 ALLOWANCE_EXPIRATION_TIME: constant(uint256) = 30 * 24 * 60 * 60
@@ -132,18 +132,36 @@ def spot_price() -> uint256:
 
 @internal
 @view
+def _discount(_account: address) -> (uint256, uint256):
+    locked: LockedBalance = veyfi.locked(_account)
+    assert locked.amount > 0
+    weeks: uint256 = min(locked.end / WEEK - block.timestamp / WEEK, CAP_DISCOUNT_WEEKS)
+    return weeks, PRICE_DISCOUNT_BIAS + PRICE_DISCOUNT_SLOPE * weeks
+
+@external
+@view
+def discount(_account: address) -> uint256:
+    weeks: uint256 = 0
+    discount: uint256 = 0
+    weeks, discount = self._discount(_account)
+    return discount
+
+@internal
+@view
 def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
     locked: LockedBalance = veyfi.locked(_lock)
     assert locked.amount > 0
 
-    weeks: uint256 = min(locked.end / WEEK - block.timestamp / WEEK, CAP_DISCOUNT_WEEKS)
+    weeks: uint256 = 0
+    discount: uint256 = 0
+    weeks, discount = self._discount(_lock)
     price: uint256 = self._spot_price()
     if _delegate:
         assert weeks >= DELEGATE_MIN_LOCK_WEEKS
         price *= DELEGATE_PRICE_MULTIPLIER
     else:
         assert weeks >= MIN_LOCK_WEEKS
-        price *= PRICE_MULTIPLIER_BIAS - PRICE_MULTIPLIER_SLOPE * weeks
+        price *= SCALE - discount
     price /= SCALE
     return _amount_in * SCALE / price
 
