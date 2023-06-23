@@ -97,7 +97,7 @@ Rationale: This is net equal or better for Yearn, as it removes the incentive to
 * YFI price is current spot price, using Chainlink oracle for YFI/DAI.[[1]](#Open-design-questions)
 * Contributor has the option to purchase any granular amount up to the max.
 * Contributor may make multiple purchases during the month, until allowance expires.
-* YFI for purchases is pulled from yChad according to the set allowance. [[2]](#Open-design-questions) 
+* yBudget keeps yDiscount topped up by transferring YFI to the contract.
 * If the Contributor elects to delegate to a third party address, the discount is hard coded to 10%. The transaction reverts if the third party's address has a lock duration that is less than 2 years (104 weeks).
 
 ### Abuse
@@ -116,4 +116,3 @@ Rationale: This is net equal or better for Yearn, as it removes the incentive to
 1. Should we use DAI as base currency for yDiscount or ETH?
    - Benefits with DAI: Contributor comp is mainly in DAI, easier to calculate allowances
    - Benefits with ETH: A more sound money, has deeper liquidity, and that we have both chainlink oracles as well as Curve v2 oracle for price feeds.
-2. For YFI that is sold, should yChad update approval allowance of the yDiscount contracts or should yChad be sending YFI to the yDiscount contracts?
