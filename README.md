@@ -80,21 +80,21 @@ Rationale: This is net equal or better for Yearn, as it removes the incentive to
 - Updates require contract redeployment
 
 ### yDiscount allowances 
-- At the beginning of a month, yBudget gives yDiscount allowances to teams (team gnosis safe), in DAI. These amounts refer to the _previous_ month
+- At the beginning of a month, yBudget gives yDiscount allowances to teams (team gnosis safe), in ETH. These amounts refer to the _previous_ month
     - For revenue sharing teams, the allowance is equal to the team's share of the revenue of the past month
     - For teams with a budget, the allowance is equal to the sum of the total contributor compensation of the past month
     - For teams that have both, the allowance is the sum of the above two
 - Teams then distribute this allowance amongst their contributors (individual addresses)
 - A contributor allowance is not allowed to exceed its received compensation, though this is not enforced on a smart contract level
 - All allowances expire after 30 days or whenever a new allowance is set, whichever happens first
-- Any non-DAI compensation amounts are converted to DAI using the average price of the asset in the past month
+- Any non-ETH compensation amounts are converted to ETH using the average price of the assets in the past month
 
 ### YFI purchases
 
 * Once a contributor has been given an allowance to purchase YFI, they may interact with yDiscount smart contracts to do so.
 * The yDiscount contracts looks up the veYFI lock duration of the address to determine the applicable discount.
 * In accordance with the YIP, total amount available for purchase [is influenced by the discount](#YFI-purchase-allowance).
-* YFI price is current spot price, using Chainlink oracle for YFI/DAI.[[1]](#Open-design-questions)
+* YFI price is current spot price, using Chainlink oracle for YFI/ETH.
 * Contributor has the option to purchase any granular amount up to the max.
 * Contributor may make multiple purchases during the month, until allowance expires.
 * yBudget keeps yDiscount topped up by transferring YFI to the contract.
@@ -110,9 +110,3 @@ Rationale: This is net equal or better for Yearn, as it removes the incentive to
 ### Future possibilities
 
 - Extend protocol to handle team veYFI bonus program
-
-### Open design questions
-
-1. Should we use DAI as base currency for yDiscount or ETH?
-   - Benefits with DAI: Contributor comp is mainly in DAI, easier to calculate allowances
-   - Benefits with ETH: A more sound money, has deeper liquidity, and that we have both chainlink oracles as well as Curve v2 oracle for price feeds.

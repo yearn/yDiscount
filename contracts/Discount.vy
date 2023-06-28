@@ -22,23 +22,26 @@ interface VotingEscrow:
     def locked(_account: address) -> LockedBalance: view
     def modify_lock(_amount: uint256, _unlock_time: uint256, _account: address) -> LockedBalance: nonpayable
 
-interface PriceOracle:
+interface ChainlinkOracle:
     def latestRoundData() -> LatestRoundData: view
+
+interface CurveOracle:
+    def price_oracle() -> uint256: view
 
 interface DiscountCallback:
     def delegated(_lock: address, _account: address, _amount_spent: uint256, _amount_locked: uint256): nonpayable
 
 yfi: public(immutable(ERC20))
 veyfi: public(immutable(VotingEscrow))
-dai: public(immutable(ERC20))
-oracle: public(immutable(PriceOracle))
+chainlink_oracle: public(immutable(ChainlinkOracle))
+curve_oracle: public(immutable(CurveOracle))
 management: public(immutable(address))
 
 team_allowances: HashMap[address, uint256] # team -> allowance
 contributor_allowances: HashMap[address, HashMap[address, uint256]] # team -> contributor -> allowance
 
 SCALE: constant(uint256) = 10**18
-SPOT_PRICE_SCALE: constant(uint256) = 10**10
+CHAINLINK_PRICE_SCALE: constant(uint256) = 10**10
 PRICE_DISCOUNT_SLOPE: constant(uint256) = 245096 * 10**10
 PRICE_DISCOUNT_BIAS: constant(uint256) = 9019616 * 10**10
 DELEGATE_PRICE_MULTIPLIER: constant(uint256) = 9 * 10**17
@@ -55,11 +58,11 @@ EXPIRATION_SHIFT: constant(int128) = -192
 EXPIRATION_MASK: constant(uint256) = 2**64 - 1
 
 @external
-def __init__(_yfi: address, _veyfi: address, _dai: address, _oracle: address, _management: address):
+def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_oracle: address, _management: address):
     yfi = ERC20(_yfi)
     veyfi = VotingEscrow(_veyfi)
-    dai = ERC20(_dai)
-    oracle = PriceOracle(_oracle)
+    chainlink_oracle = ChainlinkOracle(_chainlink_oracle)
+    curve_oracle = CurveOracle(_curve_oracle)
     management = _management
     assert ERC20(_yfi).approve(_veyfi, max_value(uint256), default_return_value=True)
 
@@ -120,10 +123,11 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
 @internal
 @view
 def _spot_price() -> uint256:
-    data: LatestRoundData = oracle.latestRoundData()
-    assert block.timestamp < data.updated + ORACLE_STALE_TIME # dev: stale
-    assert data.answer > 0
-    return convert(data.answer, uint256) * SPOT_PRICE_SCALE
+    data: LatestRoundData = chainlink_oracle.latestRoundData()
+    price: uint256 = 0
+    if block.timestamp < data.updated + ORACLE_STALE_TIME:
+        price = convert(data.answer, uint256) * CHAINLINK_PRICE_SCALE
+    return max(price, curve_oracle.price_oracle())
 
 @external
 @view
@@ -171,8 +175,10 @@ def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
     return self._preview(_lock, _amount_in, _delegate)
 
 @external
-def buy(_teams: DynArray[address, 16], _amount_in: uint256, _min_amount_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
-    left: uint256 = _amount_in
+@payable
+def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
+    left: uint256 = msg.value
+    assert left > 0
     for i in range(16):
         if i == len(_teams):
             break
@@ -192,13 +198,14 @@ def buy(_teams: DynArray[address, 16], _amount_in: uint256, _min_amount_locked: 
         if left == 0:
             break
     assert left == 0
-    amount_locked: uint256 = self._preview(_lock, _amount_in, _lock != msg.sender)
-    assert amount_locked >= _min_amount_locked
 
-    assert dai.transferFrom(msg.sender, management, _amount_in, default_return_value=True)
-    veyfi.modify_lock(amount_locked, 0, _lock)
+    # reverts if user has no lock or duration is too short
+    locked: uint256 = self._preview(_lock, msg.value, _lock != msg.sender)
+    assert locked >= _min_locked
+
+    veyfi.modify_lock(locked, 0, _lock)
     if _callback != empty(address):
-        DiscountCallback(_callback).delegated(_lock, msg.sender, _amount_in, amount_locked)
+        DiscountCallback(_callback).delegated(_lock, msg.sender, msg.value, locked)
 
 @external
 def withdraw(_token: address, _amount: uint256):
