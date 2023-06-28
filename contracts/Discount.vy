@@ -207,6 +207,8 @@ def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = ms
     if _callback != empty(address):
         DiscountCallback(_callback).delegated(_lock, msg.sender, msg.value, locked)
 
+    raw_call(management, b"", value=msg.value)
+
 @external
 def withdraw(_token: address, _amount: uint256):
     assert msg.sender == management
