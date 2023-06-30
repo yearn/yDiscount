@@ -37,3 +37,33 @@ def test_discount(chain, deployer, alice, veyfi, discount, weeks, target):
     ts = (chain.pending_timestamp // WEEK + weeks) * WEEK
     veyfi.set_locked(alice, 1, ts, sender=deployer)
     assert round(discount.discount(alice)*100/UNIT, 1) == target
+
+def test_chainlink_oracle(project, deployer, management, yfi, veyfi):
+    chainlink_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    curve_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    discount = project.Discount.deploy(yfi, veyfi, chainlink_oracle, curve_oracle, management, sender=deployer)
+
+    chainlink_oracle.set_price(2 * UNIT, sender=deployer)
+    curve_oracle.set_price(UNIT, sender=deployer)
+    assert discount.spot_price() == 2 * UNIT
+
+def test_stale_chainlink_oracle(project, chain, deployer, management, yfi, veyfi):
+    chainlink_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    curve_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    discount = project.Discount.deploy(yfi, veyfi, chainlink_oracle, curve_oracle, management, sender=deployer)
+
+    chainlink_oracle.set_price(2 * UNIT, sender=deployer)
+    curve_oracle.set_price(UNIT, sender=deployer)
+    assert discount.spot_price() == 2 * UNIT
+
+    chain.mine(timestamp=chain.pending_timestamp + 2 * 60 * 60)
+    assert discount.spot_price() == UNIT
+
+def test_curve_oracle(project, deployer, management, yfi, veyfi):
+    chainlink_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    curve_oracle = project.MockPriceOracle.deploy(sender=deployer)
+    discount = project.Discount.deploy(yfi, veyfi, chainlink_oracle, curve_oracle, management, sender=deployer)
+
+    chainlink_oracle.set_price(UNIT, sender=deployer)
+    curve_oracle.set_price(2 * UNIT, sender=deployer)
+    assert discount.spot_price() == 2 * UNIT
