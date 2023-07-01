@@ -116,7 +116,13 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
         if i == len(_contributors):
             break
         team_allowance -= _allowances[i]
-        self.contributor_allowances[msg.sender][_contributors[i]] = self._pack_allowance(_allowances[i], expiration)
+        contributor_allowance: uint256 = 0
+        contributor_expiration: uint256 = 0
+        contributor_allowance, contributor_expiration = self._unpack_allowance(self.contributor_allowances[msg.sender][_contributors[i]])
+        if contributor_expiration != expiration:
+            contributor_allowance = 0
+
+        self.contributor_allowances[msg.sender][_contributors[i]] = self._pack_allowance(contributor_allowance + _allowances[i], expiration)
 
     self.team_allowances[msg.sender] = self._pack_allowance(team_allowance, expiration)
 
