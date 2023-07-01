@@ -68,23 +68,23 @@ def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_
 
 @external
 @view
-def team_allowance(_team: address) -> uint256:
+def team_allowance(_team: address) -> (uint256, uint256):
     allowance: uint256 = 0
     expiration: uint256 = 0
     allowance, expiration = self._unpack_allowance(self.team_allowances[_team])
     if block.timestamp >= expiration:
-        return 0
-    return allowance
+        return 0, 0
+    return allowance, expiration
 
 @external
 @view
-def contributor_allowance(_team: address, _contributor: address) -> uint256:
+def contributor_allowance(_team: address, _contributor: address) -> (uint256, uint256):
     allowance: uint256 = 0
     expiration: uint256 = 0
     allowance, expiration = self._unpack_allowance(self.contributor_allowances[_team][_contributor])
     if block.timestamp >= expiration:
-        return 0
-    return allowance
+        return 0, 0
+    return allowance, expiration
 
 @external
 def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _expiration: uint256 = 0):
