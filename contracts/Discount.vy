@@ -161,10 +161,10 @@ def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
     weeks, discount = self._discount(_lock)
     price: uint256 = self._spot_price()
     if _delegate:
-        assert weeks >= DELEGATE_MIN_LOCK_WEEKS
+        assert weeks >= DELEGATE_MIN_LOCK_WEEKS, "delegate lock too short"
         price *= DELEGATE_PRICE_MULTIPLIER
     else:
-        assert weeks >= MIN_LOCK_WEEKS
+        assert weeks >= MIN_LOCK_WEEKS, "lock too short"
         price *= SCALE - discount
     price /= SCALE
     return _amount_in * SCALE / price
@@ -197,7 +197,7 @@ def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = ms
         self.contributor_allowances[_teams[i]][msg.sender] = self._pack_allowance(allowance, expiration)
         if left == 0:
             break
-    assert left == 0
+    assert left == 0, "insufficient allowance"
 
     # reverts if user has no lock or duration is too short
     locked: uint256 = self._preview(_lock, msg.value, _lock != msg.sender)
