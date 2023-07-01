@@ -2,7 +2,7 @@
 """
 @title yDiscount
 @author Yearn Finance
-@license Copyright (c) Yearn Finance, 2023 - all rights reserved
+@license AGPLv3
 """
 
 from vyper.interfaces import ERC20
