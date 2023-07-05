@@ -149,3 +149,8 @@ def test_set_contributor_allowances_overwrite(chain, management, alice, bob, dis
     discount.set_contributor_allowances([bob], [UNIT], sender=alice)
     assert discount.team_allowance(alice)[0] == 2 * UNIT
     assert discount.contributor_allowance(alice, bob) == (UNIT, ts)
+
+def test_preview(chain, deployer, alice, veyfi, oracle, discount):
+    oracle.set_price(2 * UNIT, sender=deployer)
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 4 * WEEK, sender=deployer)
+    assert discount.preview(alice, UNIT * 18 // 10, False) == UNIT
