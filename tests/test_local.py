@@ -154,3 +154,48 @@ def test_preview(chain, deployer, alice, veyfi, oracle, discount):
     oracle.set_price(2 * UNIT, sender=deployer)
     veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 4 * WEEK, sender=deployer)
     assert discount.preview(alice, UNIT * 18 // 10, False) == UNIT
+
+def test_preview_max(chain, deployer, alice, veyfi, oracle, discount):
+    oracle.set_price(2 * UNIT, sender=deployer)
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 5 * 52 * WEEK, sender=deployer)
+    price = (100_000_000 - 59_999_584) * 2 * UNIT // 100_000_000
+    assert discount.preview(alice, UNIT, False) == UNIT * UNIT // price
+
+def test_preview_no_lock(chain, deployer, alice, veyfi, oracle, discount):
+    oracle.set_price(2 * UNIT, sender=deployer)
+    
+    # no lock
+    with ape.reverts():
+        discount.preview(alice, UNIT, False)
+    
+    # expired lock
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK - 2 * WEEK, sender=deployer)
+    with ape.reverts():
+        discount.preview(alice, UNIT, False)
+
+    # too short lock
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 2 * WEEK, sender=deployer)
+    with ape.reverts():
+        discount.preview(alice, UNIT, False)
+
+def test_preview_delegate(chain, deployer, alice, veyfi, oracle, discount):
+    oracle.set_price(2 * UNIT, sender=deployer)
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 5 * 52 * WEEK, sender=deployer)
+    assert discount.preview(alice, UNIT * 18 // 10, True) == UNIT
+
+def test_preview_delegate_no_lock(chain, deployer, alice, veyfi, oracle, discount):
+    oracle.set_price(2 * UNIT, sender=deployer)
+    
+    # no lock
+    with ape.reverts():
+        discount.preview(alice, UNIT, True)
+    
+    # expired lock
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK - 2 * WEEK, sender=deployer)
+    with ape.reverts():
+        discount.preview(alice, UNIT, True)
+
+    # too short lock
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 100 * WEEK, sender=deployer)
+    with ape.reverts():
+        discount.preview(alice, UNIT, True)
