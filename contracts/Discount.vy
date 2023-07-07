@@ -44,7 +44,7 @@ SCALE: constant(uint256) = 10**18
 CHAINLINK_PRICE_SCALE: constant(uint256) = 10**10
 PRICE_DISCOUNT_SLOPE: constant(uint256) = 245096 * 10**10
 PRICE_DISCOUNT_BIAS: constant(uint256) = 9019616 * 10**10
-DELEGATE_PRICE_MULTIPLIER: constant(uint256) = 9 * 10**17
+DELEGATE_DISCOUNT: constant(uint256) = 10**17
 
 ALLOWANCE_EXPIRATION_TIME: constant(uint256) = 30 * 24 * 60 * 60
 ORACLE_STALE_TIME: constant(uint256) = 2 * 60 * 60
@@ -56,6 +56,24 @@ CAP_DISCOUNT_WEEKS: constant(uint256) = 208
 ALLOWANCE_MASK: constant(uint256) = 2**192 - 1
 EXPIRATION_SHIFT: constant(int128) = -192
 EXPIRATION_MASK: constant(uint256) = 2**64 - 1
+
+event TeamAllowance:
+    team: indexed(address)
+    allowance: uint256
+    expiration: uint256
+
+event ContributorAllowance:
+    team: indexed(address)
+    contributor: indexed(address)
+    allowance: uint256
+    expiration: uint256
+
+event Buy:
+    contributor: indexed(address)
+    amount_in: uint256
+    amount_out: uint256
+    discount: uint256
+    lock: address
 
 @external
 def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_oracle: address, _management: address):
@@ -101,6 +119,7 @@ def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[ui
         if i == len(_teams):
             break
         self.team_allowances[_teams[i]] = self._pack_allowance(_allowances[i], expiration)
+        log TeamAllowance(_teams[i], _allowances[i], expiration)
 
 @external
 def set_contributor_allowances(_contributors: DynArray[address, 256], _allowances: DynArray[uint256, 256]):
@@ -121,8 +140,10 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
         contributor_allowance, contributor_expiration = self._unpack_allowance(self.contributor_allowances[msg.sender][_contributors[i]])
         if contributor_expiration != expiration:
             contributor_allowance = 0
+        contributor_allowance += _allowances[i]
 
-        self.contributor_allowances[msg.sender][_contributors[i]] = self._pack_allowance(contributor_allowance + _allowances[i], expiration)
+        self.contributor_allowances[msg.sender][_contributors[i]] = self._pack_allowance(contributor_allowance, expiration)
+        log ContributorAllowance(msg.sender, _contributors[i], contributor_allowance, expiration)
 
     self.team_allowances[msg.sender] = self._pack_allowance(team_allowance, expiration)
 
@@ -158,7 +179,7 @@ def discount(_account: address) -> uint256:
 
 @internal
 @view
-def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
+def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> (uint256, uint256):
     locked: LockedBalance = veyfi.locked(_lock)
     assert locked.amount > 0
 
@@ -168,17 +189,19 @@ def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
     price: uint256 = self._spot_price()
     if _delegate:
         assert weeks >= DELEGATE_MIN_LOCK_WEEKS, "delegate lock too short"
-        price *= DELEGATE_PRICE_MULTIPLIER
+        discount = DELEGATE_DISCOUNT
     else:
         assert weeks >= MIN_LOCK_WEEKS, "lock too short"
-        price *= SCALE - discount
-    price /= SCALE
-    return _amount_in * SCALE / price
+    price = price * (SCALE - discount) / SCALE
+    return _amount_in * SCALE / price, discount
 
 @external
 @view
 def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
-    return self._preview(_lock, _amount_in, _delegate)
+    amount: uint256 = 0
+    discount: uint256 = 0
+    amount, discount = self._preview(_lock, _amount_in, _delegate)
+    return amount
 
 @external
 @payable
@@ -206,7 +229,9 @@ def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = ms
     assert left == 0, "insufficient allowance"
 
     # reverts if user has no lock or duration is too short
-    locked: uint256 = self._preview(_lock, msg.value, _lock != msg.sender)
+    locked: uint256 = 0
+    discount: uint256 = 0
+    locked, discount = self._preview(_lock, msg.value, _lock != msg.sender)
     assert locked >= _min_locked
 
     veyfi.modify_lock(locked, 0, _lock)
@@ -214,6 +239,7 @@ def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = ms
         DiscountCallback(_callback).delegated(_lock, msg.sender, msg.value, locked)
 
     raw_call(management, b"", value=msg.value)
+    log Buy(msg.sender, msg.value, locked, discount, _lock)
 
 @external
 def withdraw(_token: address, _amount: uint256):
