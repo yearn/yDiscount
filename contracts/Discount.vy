@@ -3,7 +3,13 @@
 @title yDiscount
 @author Yearn Finance
 @license AGPLv3
-@notice 
+@notice
+    Allow contributors to buy locked YFI at a discount.
+    Once a month, yBudget gives allowances to teams based on their budget/revenue.
+    Teams can allocate those allowances to their individual contributors, up to their salary.
+    Contributors can choose to exercise (part of) their allowance to buy YFI at a discount.
+    The YFI is added to their veYFI lock and the discount depends on the remaining duration of the lock.
+    Alternatively contributors have the option to delegate their discount to a third party for a flat discount.
 """
 
 from vyper.interfaces import ERC20
