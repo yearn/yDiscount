@@ -3,6 +3,7 @@
 @title yDiscount
 @author Yearn Finance
 @license AGPLv3
+@notice 
 """
 
 from vyper.interfaces import ERC20
@@ -77,6 +78,14 @@ event Buy:
 
 @external
 def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_oracle: address, _management: address):
+    """
+    @notice Constructor
+    @param _yfi YFI address
+    @param _veyfi veYFI address
+    @param _chainlink_oracle Chainlink oracle address
+    @param _curve_oracle YFI/ETH Curve pool address
+    @param _management Management address
+    """
     yfi = ERC20(_yfi)
     veyfi = VotingEscrow(_veyfi)
     chainlink_oracle = ChainlinkOracle(_chainlink_oracle)
@@ -87,6 +96,12 @@ def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_
 @external
 @view
 def team_allowance(_team: address) -> (uint256, uint256):
+    """
+    @notice Get available allowance for a particular team
+    @param _team Team to query allowance for
+    @return Allowance amount
+    @return Expiration timestamp
+    """
     allowance: uint256 = 0
     expiration: uint256 = 0
     allowance, expiration = self._unpack_allowance(self.team_allowances[_team])
@@ -97,6 +112,13 @@ def team_allowance(_team: address) -> (uint256, uint256):
 @external
 @view
 def contributor_allowance(_team: address, _contributor: address) -> (uint256, uint256):
+    """
+    @notice Get available allowance for a particular contributor of a team
+    @param _team Team that the contributor belongs to
+    @param _contributor Contributor to query allowance for
+    @return Allowance amount
+    @return Expiration timestamp
+    """
     allowance: uint256 = 0
     expiration: uint256 = 0
     allowance, expiration = self._unpack_allowance(self.contributor_allowances[_team][_contributor])
@@ -106,6 +128,12 @@ def contributor_allowance(_team: address, _contributor: address) -> (uint256, ui
 
 @external
 def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _expiration: uint256 = 0):
+    """
+    @notice Set new allowance for multiple teams
+    @param _teams Teams to set allowances for
+    @param _allowances Allowance amounts
+    @param _expiration Timestamp of allowance expiration. Defaults to 30 days in the future
+    """
     assert msg.sender == management
     assert len(_teams) == len(_allowances)
 
@@ -123,6 +151,11 @@ def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[ui
 
 @external
 def set_contributor_allowances(_contributors: DynArray[address, 256], _allowances: DynArray[uint256, 256]):
+    """
+    @notice Allocate team allowance to contributors
+    @param _contributors Contributors to allocate allowances to
+    @param _allowances Allowance amounts
+    """
     assert len(_contributors) == len(_allowances)
 
     team_allowance: uint256 = 0
@@ -159,6 +192,9 @@ def _spot_price() -> uint256:
 @external
 @view
 def spot_price() -> uint256:
+    """
+    @notice Get current YFI spot price in 18 decimals
+    """
     return self._spot_price()
 
 @internal
@@ -172,6 +208,9 @@ def _discount(_account: address) -> (uint256, uint256):
 @external
 @view
 def discount(_account: address) -> uint256:
+    """
+    @notice Get contributor discount in 18 decimals
+    """
     weeks: uint256 = 0
     discount: uint256 = 0
     weeks, discount = self._discount(_account)
@@ -198,6 +237,12 @@ def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> (uint256, 
 @external
 @view
 def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
+    """
+    @notice Preview a YFI purchase
+    @param _lock Account that owns the lock
+    @param _amount_in Amount of ETH to spend
+    @param _delegate False: lock belongs to contributor, True: lock belongs to a third party
+    """
     amount: uint256 = 0
     discount: uint256 = 0
     amount, discount = self._preview(_lock, _amount_in, _delegate)
@@ -206,6 +251,13 @@ def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
 @external
 @payable
 def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
+    """
+    @notice Buy YFI at a discount
+    @param _teams Team allowances to use
+    @param _min_locked Minimum amount of YFI to be locked
+    @param _lock Owner of the lock to add to
+    @param _callback Contract to call after adding to the lock
+    """
     left: uint256 = msg.value
     assert left > 0
     for i in range(16):
@@ -243,6 +295,11 @@ def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = ms
 
 @external
 def withdraw(_token: address, _amount: uint256):
+    """
+    @notice Withdraw a token from the contract
+    @param _token Token to withdraw
+    @param _amount Amount to withdraw
+    """
     assert msg.sender == management
     assert ERC20(_token).transfer(msg.sender, _amount, default_return_value=True)
 
