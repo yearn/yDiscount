@@ -84,38 +84,55 @@ def test_set_team_allowances_privilege(alice, discount):
 
 def test_set_team_allowances(chain, management, alice, bob, discount):
     ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
-    assert discount.team_allowance(alice) == (0, 0)
-    assert discount.team_allowance(bob) == (0, 0)
-    discount.set_team_allowances([alice, bob], [UNIT, 2 * UNIT], sender=management)
-    assert discount.team_allowance(alice) == (UNIT, ts)
-    assert discount.team_allowance(bob) == (2 * UNIT, ts)
+    assert discount.month() == 0
+    assert discount.expiration() == 0
+    assert discount.team_allowance(alice) == 0
+    assert discount.team_allowance(bob) == 0
 
-def test_set_team_allowances_custom_expiration(chain, management, alice, discount):
-    ts = chain.pending_timestamp + DAY
-    discount.set_team_allowances([alice], [UNIT], ts, sender=management)
-    assert discount.team_allowance(alice) == (UNIT, ts)
+    discount.set_team_allowances([alice, bob], [UNIT, 2 * UNIT], sender=management)
+    assert discount.month() == 1
+    assert discount.expiration() == ts
+    assert discount.team_allowance(alice) == UNIT
+    assert discount.team_allowance(bob) == 2 * UNIT
+
+def test_set_new_team_allowances(chain, management, alice, bob, discount):
+    discount.set_team_allowances([alice, bob], [UNIT, 2 * UNIT], sender=management)
+    ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
+    discount.set_team_allowances([alice], [2 * UNIT], sender=management)
+    assert discount.month() == 2
+    assert discount.expiration() == ts
+    assert discount.team_allowance(alice) == 2 * UNIT
+    assert discount.team_allowance(bob) == 0
+
+def test_overwrite_team_allowances(chain, management, alice, bob, discount):
+    ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
+    discount.set_team_allowances([alice, bob], [UNIT, UNIT], sender=management)
+    discount.set_team_allowances([alice], [2 * UNIT], False, sender=management)
+    assert discount.month() == 1
+    assert discount.expiration() == ts
+    assert discount.team_allowance(alice) == 2 * UNIT
+    assert discount.team_allowance(bob) == UNIT
 
 def test_team_allowance_expiry(chain, management, alice, discount):
     ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
     discount.set_team_allowances([alice], [UNIT], sender=management)
     chain.mine(timestamp=ts - 1)
-    assert discount.team_allowance(alice) == (UNIT, ts)
+    assert discount.team_allowance(alice) == UNIT
     chain.mine(timestamp=ts)
-    assert discount.team_allowance(alice) == (0, 0)
+    assert discount.team_allowance(alice) == 0
 
 def test_set_contributor_allowances_privilege(alice, bob, discount):
     with ape.reverts():
         discount.set_contributor_allowances([bob], [UNIT], sender=alice)
 
-def test_set_contributor_allowances(chain, management, alice, bob, charlie, discount):
-    ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
+def test_set_contributor_allowances(management, alice, bob, charlie, discount):
     discount.set_team_allowances([alice], [3 * UNIT], sender=management)
-    assert discount.contributor_allowance(alice, bob) == (0, 0)
-    assert discount.contributor_allowance(alice, charlie) == (0, 0)
+    assert discount.contributor_allowance(bob) == 0
+    assert discount.contributor_allowance(charlie) == 0
     discount.set_contributor_allowances([bob, charlie], [UNIT, 2 * UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == 0
-    assert discount.contributor_allowance(alice, bob) == (UNIT, ts)
-    assert discount.contributor_allowance(alice, charlie) == (2 * UNIT, ts)
+    assert discount.team_allowance(alice) == 0
+    assert discount.contributor_allowance(bob) == UNIT
+    assert discount.contributor_allowance(charlie) == 2 * UNIT
 
 def test_set_contributor_allowances_excess(management, alice, bob, discount):
     discount.set_team_allowances([alice], [UNIT], sender=management)
@@ -125,30 +142,35 @@ def test_set_contributor_allowances_excess(management, alice, bob, discount):
 def test_set_contributor_allowances_multiple(management, alice, bob, charlie, discount):
     discount.set_team_allowances([alice], [3 * UNIT], sender=management)
     discount.set_contributor_allowances([bob], [UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == 2 * UNIT
-    assert discount.contributor_allowance(alice, bob)[0] == UNIT
-    assert discount.contributor_allowance(alice, charlie)[0] == 0
+    assert discount.team_allowance(alice) == 2 * UNIT
+    assert discount.contributor_allowance(bob) == UNIT
+    assert discount.contributor_allowance(charlie) == 0
     discount.set_contributor_allowances([charlie], [UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == UNIT
-    assert discount.contributor_allowance(alice, charlie)[0] == UNIT
+    assert discount.team_allowance(alice) == UNIT
+    assert discount.contributor_allowance(charlie) == UNIT
 
 def test_set_contributor_allowances_add(management, alice, bob, discount):
     discount.set_team_allowances([alice], [3 * UNIT], sender=management)
     discount.set_contributor_allowances([bob], [UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == 2 * UNIT
-    assert discount.contributor_allowance(alice, bob)[0] == UNIT
+    assert discount.team_allowance(alice) == 2 * UNIT
+    assert discount.contributor_allowance(bob) == UNIT
     discount.set_contributor_allowances([bob], [UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == UNIT
-    assert discount.contributor_allowance(alice, bob)[0] == 2 * UNIT
+    assert discount.team_allowance(alice) == UNIT
+    assert discount.contributor_allowance(bob) == 2 * UNIT
 
-def test_set_contributor_allowances_overwrite(chain, management, alice, bob, discount):
+def test_set_contributor_allowances_add_multiple_teams(management, alice, bob, charlie, discount):
+    discount.set_team_allowances([alice, bob], [3 * UNIT, UNIT], sender=management)
+    discount.set_contributor_allowances([charlie], [UNIT], sender=alice)
+    discount.set_contributor_allowances([charlie], [UNIT], sender=bob)
+    assert discount.contributor_allowance(charlie) == 2 * UNIT
+
+def test_set_contributor_allowances_overwrite(management, alice, bob, discount):
+    discount.set_team_allowances([alice], [3 * UNIT], sender=management)
+    discount.set_contributor_allowances([bob], [2 * UNIT], sender=alice)
     discount.set_team_allowances([alice], [3 * UNIT], sender=management)
     discount.set_contributor_allowances([bob], [UNIT], sender=alice)
-    ts = chain.pending_timestamp + ALLOWANCE_EXPIRATION_TIME
-    discount.set_team_allowances([alice], [3 * UNIT], sender=management)
-    discount.set_contributor_allowances([bob], [UNIT], sender=alice)
-    assert discount.team_allowance(alice)[0] == 2 * UNIT
-    assert discount.contributor_allowance(alice, bob) == (UNIT, ts)
+    assert discount.team_allowance(alice) == 2 * UNIT
+    assert discount.contributor_allowance(bob) == UNIT
 
 def test_preview(chain, deployer, alice, veyfi, oracle, discount):
     oracle.set_price(2 * UNIT, sender=deployer)
