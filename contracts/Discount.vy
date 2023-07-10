@@ -138,22 +138,21 @@ def contributor_allowance(_contributor: address) -> uint256:
     return allowance
 
 @external
-def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _month: uint256 = 0):
+def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _new_month: bool = True):
     """
     @notice Set new allowance for multiple teams
     @param _teams Teams to set allowances for
     @param _allowances Allowance amounts
-    @param _month
-        Can be either zero or equal to current month. Triggers a new month if value is zero, 
-        invalidating previous allowances for all teams and contributors.
+    @param _new_month
+        True: trigger a new month, invalidating previous allowances for all teams and contributors
+        False: modify allowances for current month
     """
     assert msg.sender == management
     assert len(_teams) == len(_allowances)
-    month: uint256 = self.month
-    assert _month == 0 or _month == month
     
+    month: uint256 = self.month
     expiration: uint256 = 0
-    if _month == 0:
+    if _new_month:
         month += 1
         expiration = block.timestamp + ALLOWANCE_EXPIRATION_TIME
         self.month = month
@@ -161,6 +160,7 @@ def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[ui
         log NewMonth(month, expiration)
     else:
         expiration = self.expiration
+        assert expiration > block.timestamp
 
     for i in range(256):
         if i == len(_teams):
