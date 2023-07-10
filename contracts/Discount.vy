@@ -44,8 +44,10 @@ chainlink_oracle: public(immutable(ChainlinkOracle))
 curve_oracle: public(immutable(CurveOracle))
 management: public(immutable(address))
 
-team_allowances: HashMap[address, uint256] # team -> allowance
-contributor_allowances: HashMap[address, HashMap[address, uint256]] # team -> contributor -> allowance
+month: public(uint256)
+expiration: public(uint256)
+team_allowances: HashMap[address, uint256] # team -> packed allowance
+contributor_allowances: HashMap[address, uint256] # contributor -> packed allowance
 
 SCALE: constant(uint256) = 10**18
 CHAINLINK_PRICE_SCALE: constant(uint256) = 10**10
@@ -64,15 +66,21 @@ ALLOWANCE_MASK: constant(uint256) = 2**192 - 1
 EXPIRATION_SHIFT: constant(int128) = -192
 EXPIRATION_MASK: constant(uint256) = 2**64 - 1
 
+event NewMonth:
+    month: uint256
+    expiration: uint256
+
 event TeamAllowance:
     team: indexed(address)
     allowance: uint256
+    month: uint256
     expiration: uint256
 
 event ContributorAllowance:
     team: indexed(address)
     contributor: indexed(address)
     allowance: uint256
+    month: uint256
     expiration: uint256
 
 event Buy:
@@ -101,59 +109,64 @@ def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_
 
 @external
 @view
-def team_allowance(_team: address) -> (uint256, uint256):
+def team_allowance(_team: address) -> uint256:
     """
     @notice Get available allowance for a particular team
     @param _team Team to query allowance for
     @return Allowance amount
-    @return Expiration timestamp
     """
     allowance: uint256 = 0
-    expiration: uint256 = 0
-    allowance, expiration = self._unpack_allowance(self.team_allowances[_team])
-    if block.timestamp >= expiration:
-        return 0, 0
-    return allowance, expiration
+    month: uint256 = 0
+    allowance, month = self._unpack_allowance(self.team_allowances[_team])
+    if month != self.month or block.timestamp >= self.expiration:
+        return 0
+    return allowance
 
 @external
 @view
-def contributor_allowance(_team: address, _contributor: address) -> (uint256, uint256):
+def contributor_allowance(_contributor: address) -> uint256:
     """
-    @notice Get available allowance for a particular contributor of a team
-    @param _team Team that the contributor belongs to
+    @notice Get available allowance for a particular contributor
     @param _contributor Contributor to query allowance for
     @return Allowance amount
-    @return Expiration timestamp
     """
     allowance: uint256 = 0
-    expiration: uint256 = 0
-    allowance, expiration = self._unpack_allowance(self.contributor_allowances[_team][_contributor])
-    if block.timestamp >= expiration:
-        return 0, 0
-    return allowance, expiration
+    month: uint256 = 0
+    allowance, month = self._unpack_allowance(self.contributor_allowances[_contributor])
+    if month != self.month or block.timestamp >= self.expiration:
+        return 0
+    return allowance
 
 @external
-def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _expiration: uint256 = 0):
+def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[uint256, 256], _month: uint256 = 0):
     """
     @notice Set new allowance for multiple teams
     @param _teams Teams to set allowances for
     @param _allowances Allowance amounts
-    @param _expiration Timestamp of allowance expiration. Defaults to 30 days in the future
+    @param _month
+        Can be either zero or equal to current month. Triggers a new month if value is zero, 
+        invalidating previous allowances for all teams and contributors.
     """
     assert msg.sender == management
     assert len(_teams) == len(_allowances)
-
-    expiration: uint256 = _expiration
-    if _expiration == 0:
+    month: uint256 = self.month
+    assert _month == 0 or _month == month
+    
+    expiration: uint256 = 0
+    if _month == 0:
+        month += 1
         expiration = block.timestamp + ALLOWANCE_EXPIRATION_TIME
+        self.month = month
+        self.expiration = expiration
+        log NewMonth(month, expiration)
     else:
-        assert _expiration > block.timestamp
+        expiration = self.expiration
 
     for i in range(256):
         if i == len(_teams):
             break
-        self.team_allowances[_teams[i]] = self._pack_allowance(_allowances[i], expiration)
-        log TeamAllowance(_teams[i], _allowances[i], expiration)
+        self.team_allowances[_teams[i]] = self._pack_allowance(_allowances[i], month)
+        log TeamAllowance(_teams[i], _allowances[i], month, expiration)
 
 @external
 def set_contributor_allowances(_contributors: DynArray[address, 256], _allowances: DynArray[uint256, 256]):
@@ -165,26 +178,26 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
     assert len(_contributors) == len(_allowances)
 
     team_allowance: uint256 = 0
-    expiration: uint256 = 0
-    team_allowance, expiration = self._unpack_allowance(self.team_allowances[msg.sender])
+    month: uint256 = 0
+    team_allowance, month = self._unpack_allowance(self.team_allowances[msg.sender])
     assert team_allowance > 0
-    assert expiration > block.timestamp
+    assert month == self.month and self.expiration > block.timestamp, "allowance expired"
 
     for i in range(256):
         if i == len(_contributors):
             break
         team_allowance -= _allowances[i]
         contributor_allowance: uint256 = 0
-        contributor_expiration: uint256 = 0
-        contributor_allowance, contributor_expiration = self._unpack_allowance(self.contributor_allowances[msg.sender][_contributors[i]])
-        if contributor_expiration != expiration:
+        contributor_month: uint256 = 0
+        contributor_allowance, contributor_month = self._unpack_allowance(self.contributor_allowances[_contributors[i]])
+        if contributor_month != month:
             contributor_allowance = 0
         contributor_allowance += _allowances[i]
 
-        self.contributor_allowances[msg.sender][_contributors[i]] = self._pack_allowance(contributor_allowance, expiration)
-        log ContributorAllowance(msg.sender, _contributors[i], contributor_allowance, expiration)
+        self.contributor_allowances[_contributors[i]] = self._pack_allowance(contributor_allowance, month)
+        log ContributorAllowance(msg.sender, _contributors[i], contributor_allowance, month, self.expiration)
 
-    self.team_allowances[msg.sender] = self._pack_allowance(team_allowance, expiration)
+    self.team_allowances[msg.sender] = self._pack_allowance(team_allowance, month)
 
 @internal
 @view
@@ -256,41 +269,29 @@ def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
 
 @external
 @payable
-def buy(_teams: DynArray[address, 16], _min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
+def buy(_min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
     """
     @notice Buy YFI at a discount
-    @param _teams Team allowances to use
     @param _min_locked Minimum amount of YFI to be locked
     @param _lock Owner of the lock to add to
     @param _callback Contract to call after adding to the lock
     """
-    left: uint256 = msg.value
-    assert left > 0
-    for i in range(16):
-        if i == len(_teams):
-            break
-        allowance: uint256 = 0
-        expiration: uint256 = 0
-        allowance, expiration = self._unpack_allowance(self.contributor_allowances[_teams[i]][msg.sender])
-        if block.timestamp >= expiration:
-            continue
-        if allowance > left:
-            allowance -= left
-            left = 0
-        else:
-            allowance = 0
-            expiration = 0 # clear entire slot
-            left -= allowance
-        self.contributor_allowances[_teams[i]][msg.sender] = self._pack_allowance(allowance, expiration)
-        if left == 0:
-            break
-    assert left == 0, "insufficient allowance"
+    assert msg.value > 0
+
+    allowance: uint256 = 0
+    month: uint256 = 0
+    allowance, month = self._unpack_allowance(self.contributor_allowances[msg.sender])
+    assert allowance > 0
+    assert month == self.month and self.expiration > block.timestamp, "allowance expired"
+    
+    allowance -= msg.value
+    self.contributor_allowances[msg.sender] = self._pack_allowance(allowance, month)
 
     # reverts if user has no lock or duration is too short
     locked: uint256 = 0
     discount: uint256 = 0
     locked, discount = self._preview(_lock, msg.value, _lock != msg.sender)
-    assert locked >= _min_locked
+    assert locked >= _min_locked, "price change"
 
     veyfi.modify_lock(locked, 0, _lock)
     if _callback != empty(address):
