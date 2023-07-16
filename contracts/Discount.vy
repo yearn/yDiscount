@@ -9,7 +9,7 @@
     Teams can allocate those allowances to their individual contributors, up to their salary.
     Contributors can choose to exercise (part of) their allowance to buy YFI at a discount.
     The YFI is added to their veYFI lock and the discount depends on the remaining duration of the lock.
-    Alternatively contributors have the option to delegate their discount to a third party for a flat discount.
+    Alternatively contributors have the option to delegate their discount to a third party for a fixed discount.
 """
 
 from vyper.interfaces import ERC20
@@ -269,12 +269,13 @@ def preview(_lock: address, _amount_in: uint256, _delegate: bool) -> uint256:
 
 @external
 @payable
-def buy(_min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)):
+def buy(_min_locked: uint256, _lock: address = msg.sender, _callback: address = empty(address)) -> uint256:
     """
     @notice Buy YFI at a discount
     @param _min_locked Minimum amount of YFI to be locked
     @param _lock Owner of the lock to add to
     @param _callback Contract to call after adding to the lock
+    @return Amount of YFI added to lock
     """
     assert msg.value > 0
 
@@ -299,6 +300,7 @@ def buy(_min_locked: uint256, _lock: address = msg.sender, _callback: address = 
 
     raw_call(management, b"", value=msg.value)
     log Buy(msg.sender, msg.value, locked, discount, _lock)
+    return locked
 
 @external
 def withdraw(_token: address, _amount: uint256):
