@@ -2,6 +2,23 @@
 
 Implementation of [yDiscount segment of YIP-66](https://gov.yearn.finance/t/yip-66-streamlining-contributor-compensation/12247#h-2-contributors-are-rewarded-with-yfi-tokens-through-ydiscount-25), giving contributors opportunity to buy locked YFI at a discount
 
+### Install dependencies
+```sh
+# Install foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+# Install ape
+pip install eth-ape
+# Install required ape plugins
+ape plugins install .
+```
+
+### Run tests
+```sh
+ape test
+ape test tests/fork.py --network ethereum:mainnet-fork
+```
+
 ## YIP-66 specification
 From [YIP-66](https://gov.yearn.finance/t/yip-66-streamlining-contributor-compensation/12247#h-2-contributors-are-rewarded-with-yfi-tokens-through-ydiscount-25):
 
