@@ -31,6 +31,7 @@ interface VotingEscrow:
 
 interface ChainlinkOracle:
     def latestRoundData() -> LatestRoundData: view
+    def decimals() -> uint256: view
 
 interface CurveOracle:
     def price_oracle() -> uint256: view
@@ -50,7 +51,6 @@ team_allowances: HashMap[address, uint256] # team -> packed allowance
 contributor_allowances: HashMap[address, uint256] # contributor -> packed allowance
 
 SCALE: constant(uint256) = 10**18
-CHAINLINK_PRICE_SCALE: constant(uint256) = 10**10
 PRICE_DISCOUNT_SLOPE: constant(uint256) = 245096 * 10**10
 PRICE_DISCOUNT_BIAS: constant(uint256) = 9019616 * 10**10
 DELEGATE_DISCOUNT: constant(uint256) = 10**17
@@ -105,6 +105,7 @@ def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_
     chainlink_oracle = ChainlinkOracle(_chainlink_oracle)
     curve_oracle = CurveOracle(_curve_oracle)
     management = _management
+    assert ChainlinkOracle(_chainlink_oracle).decimals() == 18
     assert ERC20(_yfi).approve(_veyfi, max_value(uint256), default_return_value=True)
 
 @external
@@ -205,7 +206,7 @@ def _spot_price() -> uint256:
     data: LatestRoundData = chainlink_oracle.latestRoundData()
     price: uint256 = 0
     if block.timestamp < data.updated + ORACLE_STALE_TIME:
-        price = convert(data.answer, uint256) * CHAINLINK_PRICE_SCALE
+        price = convert(data.answer, uint256)
     return max(price, curve_oracle.price_oracle())
 
 @external
