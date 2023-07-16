@@ -63,8 +63,8 @@ DELEGATE_MIN_LOCK_WEEKS: constant(uint256) = 104
 CAP_DISCOUNT_WEEKS: constant(uint256) = 208
 
 ALLOWANCE_MASK: constant(uint256) = 2**192 - 1
-EXPIRATION_SHIFT: constant(int128) = -192
-EXPIRATION_MASK: constant(uint256) = 2**64 - 1
+MONTH_SHIFT: constant(int128) = -192
+MONTH_MASK: constant(uint256) = 2**64 - 1
 
 event NewMonth:
     month: uint256
@@ -312,11 +312,11 @@ def withdraw(_token: address, _amount: uint256):
 
 @internal
 @pure
-def _pack_allowance(_allowance: uint256, _expiration: uint256) -> uint256:
-    assert _allowance <= ALLOWANCE_MASK and _expiration <= EXPIRATION_MASK
-    return _allowance | shift(_expiration, -EXPIRATION_SHIFT)
+def _pack_allowance(_allowance: uint256, _month: uint256) -> uint256:
+    assert _allowance <= ALLOWANCE_MASK and _month <= MONTH_MASK
+    return _allowance | shift(_month, -MONTH_SHIFT)
 
 @internal
 @pure
 def _unpack_allowance(_packed: uint256) -> (uint256, uint256):
-    return _packed & ALLOWANCE_MASK, shift(_packed, EXPIRATION_SHIFT)
+    return _packed & ALLOWANCE_MASK, shift(_packed, MONTH_SHIFT)
