@@ -235,6 +235,7 @@ def _discount(_account: address) -> (uint256, uint256):
 def discount(_account: address) -> uint256:
     """
     @notice Get contributor discount in 18 decimals
+    @param _account Account to query discount for
     """
     weeks: uint256 = 0
     discount: uint256 = 0
