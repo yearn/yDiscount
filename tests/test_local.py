@@ -270,12 +270,14 @@ def test_buy_max(chain, deployer, management, alice, bob, yfi, veyfi, oracle, di
     yfi.mint(discount, 10 * UNIT, sender=deployer)
 
     expected = DISCOUNT_SCALE * UNIT // (2 * MIN_MULTIPLIER)
+    prev = management.balance
     amount = discount.buy(0, value=UNIT, sender=bob).return_value
     assert amount == expected
     assert veyfi.locked(bob).amount == UNIT + expected
     assert discount.contributor_allowance(bob) == 2 * UNIT
     assert yfi.balanceOf(discount) == 10 * UNIT - expected
     assert yfi.balanceOf(veyfi) == expected
+    assert management.balance == prev + UNIT
 
 def test_buy_expire(chain, deployer, management, alice, bob, yfi, veyfi, oracle, discount):
     oracle.set_price(2 * UNIT, sender=deployer)
