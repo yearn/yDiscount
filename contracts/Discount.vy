@@ -166,6 +166,7 @@ def set_team_allowances(_teams: DynArray[address, 256], _allowances: DynArray[ui
     for i in range(256):
         if i == len(_teams):
             break
+        assert _teams[i] != empty(address)
         self.team_allowances[_teams[i]] = self._pack_allowance(_allowances[i], month)
         log TeamAllowance(_teams[i], _allowances[i], month, expiration)
 
@@ -187,6 +188,10 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
     for i in range(256):
         if i == len(_contributors):
             break
+        assert _contributors[i] != empty(address)
+        if _allowances[i] == 0:
+            continue
+
         team_allowance -= _allowances[i]
         contributor_allowance: uint256 = 0
         contributor_month: uint256 = 0
