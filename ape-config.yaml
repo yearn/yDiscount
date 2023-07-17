@@ -2,6 +2,7 @@ name: yDiscount
 plugins:
   - name: vyper
   - name: foundry
+  - name: etherscan
 ethereum:
   default_network: local
   local:
