@@ -67,7 +67,7 @@ MONTH_SHIFT: constant(int128) = -192
 MONTH_MASK: constant(uint256) = 2**64 - 1
 
 event NewMonth:
-    month: uint256
+    month: indexed(uint256)
     expiration: uint256
 
 event TeamAllowance:
