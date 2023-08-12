@@ -11,6 +11,8 @@ YFI = '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e'
 VEYFI = '0x90c1f9220d90d3966FbeE24045EDd73E1d588aD5'
 CHAINLINK_ORACLE = '0x7c5d4F8345e66f68099581Db340cd65B078C41f4'
 CURVE_ORACLE = '0xC26b89A667578ec7b3f11b2F98d6Fd15C07C54ba'
+YFIUSD_CHAINLINK_ORACLE = '0xA027702dbb89fbd58938e4324ac03B58d812b0E1'
+ETHUSD_CHAINLINK_ORACLE = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419'
 
 @pytest.fixture
 def deployer(accounts):
@@ -85,3 +87,9 @@ def test_buy(chain, management, alice, bob, yfi, veyfi, discount):
     assert abs(discount.preview(alice, price, False) / UNIT - 1) < 1e-10
     discount.buy(0, value=price, sender=alice)
     assert abs(veyfi.locked(alice).amount / 2 / UNIT - 1) < 1e-10
+
+def test_double_oracle(project, deployer, chainlink_oracle):
+    oracle = project.DoubleChainlinkOracle.deploy(YFIUSD_CHAINLINK_ORACLE, ETHUSD_CHAINLINK_ORACLE, sender=deployer)
+    a = oracle.latestRoundData().answer
+    b = chainlink_oracle.latestRoundData().answer
+    assert abs(a-b)/a < 0.01
