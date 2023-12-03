@@ -10,9 +10,9 @@ MAX = 2**256 - 1
 YFI = '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e'
 VEYFI = '0x90c1f9220d90d3966FbeE24045EDd73E1d588aD5'
 CHAINLINK_ORACLE = '0x7c5d4F8345e66f68099581Db340cd65B078C41f4'
-CURVE_ORACLE = '0xC26b89A667578ec7b3f11b2F98d6Fd15C07C54ba'
 YFIUSD_CHAINLINK_ORACLE = '0xA027702dbb89fbd58938e4324ac03B58d812b0E1'
 ETHUSD_CHAINLINK_ORACLE = '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419'
+YCHAD = '0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52'
 
 @pytest.fixture
 def deployer(accounts):
@@ -35,39 +35,37 @@ def charlie(accounts):
     return accounts[4]
 
 @pytest.fixture
-def yfi(accounts, management):
-    yfi = Contract(YFI)
-    governance = accounts[yfi.governance()]
-    yfi.addMinter(management, sender=governance)
-    return yfi
+def ychad(accounts):
+    return accounts[YCHAD]
+
+@pytest.fixture
+def yfi():
+    return Contract(YFI)
 
 @pytest.fixture
 def veyfi():
     return Contract(VEYFI)
 
 @pytest.fixture
-def chainlink_oracle():
-    return Contract(CHAINLINK_ORACLE)
+def chainlink_oracle(project, deployer):
+    return project.DoubleChainlinkOracle.deploy(YFIUSD_CHAINLINK_ORACLE, ETHUSD_CHAINLINK_ORACLE, sender=deployer)
 
 @pytest.fixture
-def curve_oracle():
-    return Contract(CURVE_ORACLE)
+def discount(project, deployer, management, yfi, veyfi, chainlink_oracle):
+    return project.Discount.deploy(yfi, veyfi, chainlink_oracle, management, sender=deployer)
 
-@pytest.fixture
-def discount(project, deployer, management, yfi, veyfi):
-    return project.Discount.deploy(yfi, veyfi, CHAINLINK_ORACLE, CURVE_ORACLE, management, sender=deployer)
+def test_oracle(chainlink_oracle, discount):
+    assert discount.spot_price() == chainlink_oracle.latestRoundData().answer
 
-def test_oracle(chainlink_oracle, curve_oracle, discount):
-    price = max(chainlink_oracle.latestRoundData().answer, curve_oracle.price_oracle())
-    assert discount.spot_price() == price
-
-def test_stale_oracle(chain, curve_oracle, discount):
+def test_stale_oracle(chain, discount):
     chain.pending_timestamp += 2 * 60 * 60
-    assert discount.spot_price() == curve_oracle.price_oracle()
+    chain.mine()
+    with ape.reverts():
+        discount.spot_price()
 
-def test_buy(chain, management, alice, bob, yfi, veyfi, discount):
-    yfi.mint(alice, UNIT, sender=management)
-    yfi.mint(discount, 10 * UNIT, sender=management)
+def test_buy(chain, management, alice, bob, ychad, yfi, veyfi, discount):
+    yfi.transfer(alice, UNIT, sender=ychad)
+    yfi.transfer(discount, 10 * UNIT, sender=ychad)
     yfi.approve(veyfi, MAX, sender=alice)
 
     price = discount.spot_price() * 9 // 10
@@ -88,8 +86,8 @@ def test_buy(chain, management, alice, bob, yfi, veyfi, discount):
     discount.buy(0, value=price, sender=alice)
     assert abs(veyfi.locked(alice).amount / 2 / UNIT - 1) < 1e-10
 
-def test_double_oracle(project, deployer, chainlink_oracle):
-    oracle = project.DoubleChainlinkOracle.deploy(YFIUSD_CHAINLINK_ORACLE, ETHUSD_CHAINLINK_ORACLE, sender=deployer)
-    a = oracle.latestRoundData().answer
-    b = chainlink_oracle.latestRoundData().answer
+def test_double_oracle(chainlink_oracle):
+    oracle = Contract(CHAINLINK_ORACLE)
+    a = oracle.latestRoundData()[1]
+    b = chainlink_oracle.latestRoundData()[1]
     assert abs(a-b)/a < 0.01

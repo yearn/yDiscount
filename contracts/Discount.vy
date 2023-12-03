@@ -33,16 +33,12 @@ interface ChainlinkOracle:
     def latestRoundData() -> LatestRoundData: view
     def decimals() -> uint256: view
 
-interface CurveOracle:
-    def price_oracle() -> uint256: view
-
 interface DiscountCallback:
     def delegated(_lock: address, _account: address, _amount_spent: uint256, _amount_locked: uint256): nonpayable
 
 yfi: public(immutable(ERC20))
 veyfi: public(immutable(VotingEscrow))
 chainlink_oracle: public(immutable(ChainlinkOracle))
-curve_oracle: public(immutable(CurveOracle))
 management: public(immutable(address))
 
 month: public(uint256)
@@ -91,19 +87,17 @@ event Buy:
     lock: address
 
 @external
-def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _curve_oracle: address, _management: address):
+def __init__(_yfi: address, _veyfi: address, _chainlink_oracle: address, _management: address):
     """
     @notice Constructor
     @param _yfi YFI address
     @param _veyfi veYFI address
     @param _chainlink_oracle Chainlink oracle address
-    @param _curve_oracle YFI/ETH Curve pool address
     @param _management Management address
     """
     yfi = ERC20(_yfi)
     veyfi = VotingEscrow(_veyfi)
     chainlink_oracle = ChainlinkOracle(_chainlink_oracle)
-    curve_oracle = CurveOracle(_curve_oracle)
     management = _management
     assert ChainlinkOracle(_chainlink_oracle).decimals() == 18
     assert ERC20(_yfi).approve(_veyfi, max_value(uint256), default_return_value=True)
@@ -209,10 +203,8 @@ def set_contributor_allowances(_contributors: DynArray[address, 256], _allowance
 @view
 def _spot_price() -> uint256:
     data: LatestRoundData = chainlink_oracle.latestRoundData()
-    price: uint256 = 0
-    if block.timestamp < data.updated + ORACLE_STALE_TIME:
-        price = convert(data.answer, uint256)
-    return max(price, curve_oracle.price_oracle())
+    assert block.timestamp < data.updated + ORACLE_STALE_TIME
+    return convert(data.answer, uint256)
 
 @external
 @view
