@@ -17,6 +17,14 @@ ape plugins install .
 ```sh
 ape test
 ape test tests/fork.py --network ethereum:mainnet-fork
+ape test tests/test_local.py::test_min_lock
+```
+
+### Run dev environment
+```sh
+cp .env.example .env
+# configure .env
+make dev
 ```
 
 ## YIP-66 specification
