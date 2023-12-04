@@ -208,6 +208,18 @@ def test_preview_no_lock(chain, deployer, alice, veyfi, oracle, discount):
     with ape.reverts('lock too short'):
         discount.preview(alice, UNIT, False)
 
+def test_min_lock(chain, deployer, alice, bob, veyfi, discount):
+    assert discount.min_lock(alice, False, sender=alice) == False
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 2 * WEEK, sender=deployer)
+    assert discount.min_lock(alice, False, sender=alice) == False
+    veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 4 * WEEK, sender=deployer)
+    assert discount.min_lock(alice, False, sender=alice) == True
+
+    veyfi.set_locked(bob, UNIT, chain.pending_timestamp // WEEK * WEEK + 2 * WEEK, sender=deployer)
+    assert discount.min_lock(bob, True, sender=alice) == False
+    veyfi.set_locked(bob, UNIT, chain.pending_timestamp // WEEK * WEEK + 104 * WEEK, sender=deployer)
+    assert discount.min_lock(bob, True, sender=alice) == True
+
 def test_preview_delegate(chain, deployer, alice, veyfi, oracle, discount):
     oracle.set_price(2 * UNIT, sender=deployer)
     veyfi.set_locked(alice, UNIT, chain.pending_timestamp // WEEK * WEEK + 5 * 52 * WEEK, sender=deployer)

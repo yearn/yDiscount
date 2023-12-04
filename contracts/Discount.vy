@@ -236,6 +236,34 @@ def discount(_account: address) -> uint256:
 
 @internal
 @view
+def _min_lock(_lock: address, _delegate: bool) -> bool:
+    locked: LockedBalance = veyfi.locked(_lock)
+    if locked.amount == 0:
+        return False
+
+    weeks: uint256 = 0
+    discount: uint256 = 0
+    weeks, discount = self._discount(_lock)
+
+    if _delegate:
+        return weeks >= DELEGATE_MIN_LOCK_WEEKS
+    else:
+        return weeks >= MIN_LOCK_WEEKS
+
+@external
+@view
+def min_lock(_lock: address, _delegate: bool) -> bool:
+    """
+    @notice Does lock meet the min duration requirement?
+    @param _lock Account that owns the lock
+    @param _delegate False: lock belongs to contributor, True: lock belongs to a third party
+    """
+    amount: uint256 = 0
+    discount: uint256 = 0
+    return self._min_lock(_lock, _delegate)
+
+@internal
+@view
 def _preview(_lock: address, _amount_in: uint256, _delegate: bool) -> (uint256, uint256):
     locked: LockedBalance = veyfi.locked(_lock)
     assert locked.amount > 0
